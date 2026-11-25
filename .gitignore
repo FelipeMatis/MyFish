@@ -24,6 +24,7 @@ migrate_working_dir/
 #.vscode/
 
 # Flutter/Dart/Pub related
+.env
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -43,6 +44,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/local.properties
+/android/.gradle/
+
+# Generated platform configuration
+/ios/Flutter/Generated.xcconfig
+/ios/Flutter/flutter_export_environment.sh
+/ios/Flutter/ephemeral/
+/ios/ServiceDefinitions.json
+/ios/Runner/GeneratedPluginRegistrant.*
+/macos/Flutter/GeneratedPluginRegistrant.swift
+/windows/flutter/ephemeral/
+/linux/flutter/ephemeral/
+
+# Firebase Emulator local state
+.firebase/
 
 # Widget Preview related
 .widget_preview/

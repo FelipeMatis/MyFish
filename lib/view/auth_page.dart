@@ -5,7 +5,10 @@ import 'home_page.dart';
 import 'login_page.dart';
 
 class AuthPage extends StatelessWidget {
+  /// Cria a página que decide entre login e conteúdo autenticado.
   const AuthPage({super.key});
+
+  /// Observa a sessão do Firebase e abre a tela correspondente.
   @override
   Widget build(BuildContext context) {
     return Scaffold(

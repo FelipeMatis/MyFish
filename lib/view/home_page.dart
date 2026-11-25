@@ -1,366 +1,307 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
+import '../repositories/fishing_repository.dart';
+import '../theme/app_theme.dart';
+import 'calendar_page.dart';
+import 'diary_page.dart';
+import 'map_page.dart';
+
 class HomePage extends StatefulWidget {
+  /// Cria a página principal com mapa, diário, calendário e perfil.
   const HomePage({super.key});
 
+  /// Cria o estado que mantém as abas e a sincronização offline.
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
-  int selectedIndex = 0;
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  final _repository = FishingRepository();
+  int _selectedIndex = 0;
+  Timer? _syncRetryTimer;
+  bool _syncInProgress = false;
+  String? _lastSyncMessage;
+  late final StreamSubscription<List<ConnectivityResult>>
+  _connectivitySubscription;
 
-  void openSettings() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SettingsPage()),
+  /// Registra observadores e inicia as tentativas de sincronização.
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
+      (results) {
+        if (results.any((result) => result != ConnectivityResult.none)) {
+          _syncPendingRecords();
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (mounted) _showSyncMessage('Não foi possível verificar a conexão.');
+      },
     );
+    _syncRetryTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _syncPendingRecords(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncPendingRecords());
   }
 
+  /// Tenta sincronizar registros quando o aplicativo volta ao primeiro plano.
   @override
-  Widget build(BuildContext context) {
-    const titles = ['Início', 'Buscar', 'Perfil'];
-    final pages = [
-      _HomeTab(
-        onOpenProfile: () => setState(() => selectedIndex = 2),
-        onOpenSettings: openSettings,
-      ),
-      _SearchTab(
-        onOpenProfile: () => setState(() => selectedIndex = 2),
-        onOpenSettings: openSettings,
-      ),
-      const _ProfileTab(),
-    ];
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(titles[selectedIndex]),
-        actions: [
-          IconButton(
-            tooltip: 'Sair',
-            icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF07111F), Color(0xFF111B2E)],
-          ),
-        ),
-        child: IndexedStack(index: selectedIndex, children: pages),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        onTap: (index) => setState(() => selectedIndex = index),
-        backgroundColor: const Color(0xFF0D1728),
-        selectedItemColor: Colors.white,
-        unselectedItemColor: const Color(0xFF9FB3D9),
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Buscar'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
-        ],
-      ),
-    );
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _syncPendingRecords();
   }
-}
 
-class _HomeTab extends StatelessWidget {
-  const _HomeTab({required this.onOpenProfile, required this.onOpenSettings});
-
-  final VoidCallback onOpenProfile;
-  final VoidCallback onOpenSettings;
-
+  /// Cancela temporizadores, observadores e inscrição de conectividade.
   @override
-  Widget build(BuildContext context) {
-    final email = FirebaseAuth.instance.currentUser?.email;
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Text(
-            'Olá,',
-            style: TextStyle(color: Color(0xFF9FB3D9), fontSize: 18),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            email ?? 'Usuário',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 25,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 26),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
-              ),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF7C3AED).withValues(alpha: 0.25),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.check_circle_outline, color: Colors.white, size: 28),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Você está logado com sucesso!',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            'Ações rápidas',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: ListTile(
-              onTap: onOpenProfile,
-              leading: const Icon(Icons.person_outline, color: Colors.white),
-              title: const Text('Meu perfil'),
-              subtitle: const Text('Veja os dados da sua conta'),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              onTap: onOpenSettings,
-              leading: const Icon(Icons.settings_outlined, color: Colors.white),
-              title: const Text('Configurações'),
-              subtitle: const Text('Preferências e segurança da conta'),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-            ),
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _syncRetryTimer?.cancel();
+    _connectivitySubscription.cancel();
+    super.dispose();
   }
-}
 
-class _SearchTab extends StatefulWidget {
-  const _SearchTab({required this.onOpenProfile, required this.onOpenSettings});
-
-  final VoidCallback onOpenProfile;
-  final VoidCallback onOpenSettings;
-
-  @override
-  State<_SearchTab> createState() => _SearchTabState();
-}
-
-class _SearchTabState extends State<_SearchTab> {
-  String query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = [
-      (
-        title: 'Meu perfil',
-        subtitle: 'Veja os dados da sua conta',
-        icon: Icons.person_outline,
-        onTap: widget.onOpenProfile,
-      ),
-      (
-        title: 'Configurações',
-        subtitle: 'Preferências e segurança da conta',
-        icon: Icons.settings_outlined,
-        onTap: widget.onOpenSettings,
-      ),
-    ].where((action) => action.title.toLowerCase().contains(query)).toList();
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          TextField(
-            onChanged: (value) =>
-                setState(() => query = value.trim().toLowerCase()),
-            decoration: InputDecoration(
-              hintText: 'Buscar ações',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: query.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Limpar busca',
-                      onPressed: () => setState(() => query = ''),
-                      icon: const Icon(Icons.close),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (actions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                'Nenhuma ação encontrada.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF9FB3D9)),
-              ),
-            )
-          else
-            ...actions.map(
-              (action) => Card(
-                child: ListTile(
-                  onTap: action.onTap,
-                  leading: Icon(action.icon, color: Colors.white),
-                  title: Text(action.title),
-                  subtitle: Text(action.subtitle),
-                  trailing: const Icon(
-                    Icons.arrow_forward_ios_rounded,
-                    size: 16,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-
-  @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Center(
-            child: CircleAvatar(
-              radius: 42,
-              backgroundColor: const Color(0xFF7C3AED),
-              backgroundImage: user?.photoURL == null
-                  ? null
-                  : NetworkImage(user!.photoURL!),
-              child: user?.photoURL != null
-                  ? null
-                  : const Icon(Icons.person, size: 42, color: Colors.white),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(
-              user?.displayName ?? 'Minha conta',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.email_outlined),
-              title: const Text('Email'),
-              subtitle: Text(user?.email ?? 'Não informado'),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.verified_user_outlined),
-              title: const Text('Método de login'),
-              subtitle: Text(
-                user?.providerData.map((item) => item.providerId).join(', ') ??
-                    'Não informado',
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
-
-  Future<void> _sendPasswordReset(BuildContext context) async {
-    final email = FirebaseAuth.instance.currentUser?.email;
-    if (email == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('A conta não possui um email cadastrado.'),
-        ),
-      );
-      return;
-    }
-
+  /// Envia ao Firebase os registros pendentes e informa eventuais erros.
+  Future<void> _syncPendingRecords() async {
+    if (_syncInProgress) return;
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) return;
+    _syncInProgress = true;
     try {
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Link de redefinição enviado para $email.')),
+      final message = await _repository.syncPendingForUser(userId);
+      if (message == null) {
+        _lastSyncMessage = null;
+      } else if (mounted && message != _lastSyncMessage) {
+        _lastSyncMessage = message;
+        _showSyncMessage(message);
+      }
+    } on Object catch (error, stackTrace) {
+      developer.log(
+        'Falha ao sincronizar registros pendentes.',
+        name: 'HomePage',
+        error: error,
+        stackTrace: stackTrace,
       );
-    } on FirebaseAuthException {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível enviar o link. Tente novamente.'),
-        ),
-      );
+      final message = 'Falha ao sincronizar: $error';
+      if (mounted && message != _lastSyncMessage) {
+        _lastSyncMessage = message;
+        _showSyncMessage(message);
+      }
+    } finally {
+      _syncInProgress = false;
     }
   }
 
+  /// Exibe uma mensagem temporária relacionada à sincronização.
+  void _showSyncMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Monta as abas principais e a navegação inferior.
   @override
   Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser!;
+    final pages = [
+      MapPage(repository: _repository),
+      DiaryPage(repository: _repository, userId: user.uid),
+      CalendarPage(repository: _repository),
+      _ProfilePage(user: user, repository: _repository),
+    ];
+    const titles = ['Mapa de pesca', 'Meu diário', 'Calendário', 'Meu perfil'];
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurações')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.dark_mode_outlined),
-              title: Text('Aparência'),
-              subtitle: Text('Tema escuro'),
+      appBar: _selectedIndex == 0
+          ? null
+          : AppBar(
+              title: Text(titles[_selectedIndex]),
+              actions: [
+                if (_selectedIndex == 3)
+                  IconButton(
+                    tooltip: 'Sair',
+                    onPressed: () => FirebaseAuth.instance.signOut(),
+                    icon: const Icon(Icons.logout),
+                  ),
+              ],
             ),
+      body: IndexedStack(index: _selectedIndex, children: pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (index) {
+          setState(() => _selectedIndex = index);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: 'Mapa',
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.password_outlined),
-              title: const Text('Redefinir senha'),
-              subtitle: const Text('Enviaremos um link para seu email'),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
-              onTap: () => _sendPasswordReset(context),
-            ),
+          NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined),
+            selectedIcon: Icon(Icons.menu_book),
+            label: 'Diário',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            selectedIcon: Icon(Icons.calendar_month),
+            label: 'Calendário',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: 'Perfil',
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ProfilePage extends StatelessWidget {
+  /// Cria o perfil para o usuário e repositório informados.
+  const _ProfilePage({required this.user, required this.repository});
+
+  final User user;
+  final FishingRepository repository;
+
+  /// Mostra as estatísticas calculadas a partir das capturas do usuário.
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: repository.watchUserCatches(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Não foi possível carregar o perfil: ${snapshot.error}',
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final catches = snapshot.data!;
+        final heaviest = catches
+            .where((capture) => capture.weightKg != null)
+            .fold<double?>(
+              null,
+              (largest, capture) =>
+                  largest == null || capture.weightKg! > largest
+                  ? capture.weightKg
+                  : largest,
+            );
+        final speciesCounts = <String, int>{};
+        for (final capture in catches) {
+          speciesCounts.update(
+            capture.species,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
+        }
+        final favoriteSpecies = speciesCounts.entries.isEmpty
+            ? null
+            : speciesCounts.entries.reduce(
+                (a, b) => a.value >= b.value ? a : b,
+              );
+
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: CircleAvatar(
+                radius: 42,
+                backgroundColor: AppTheme.cardSoft,
+                backgroundImage: user.photoURL == null
+                    ? null
+                    : NetworkImage(user.photoURL!),
+                child: user.photoURL != null
+                    ? null
+                    : const Icon(
+                        Icons.person_outline,
+                        size: 42,
+                        color: AppTheme.accent,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Center(
+              child: Text(
+                user.displayName?.trim().isNotEmpty == true
+                    ? user.displayName!
+                    : user.email ?? 'Pescador MyFish',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Center(
+              child: Text(
+                user.email ?? 'Email não informado',
+                style: const TextStyle(color: AppTheme.textSecondary),
+              ),
+            ),
+            const SizedBox(height: 24),
+            _ProfileStat(
+              icon: Icons.set_meal,
+              title: 'Capturas',
+              value: '${catches.length}',
+            ),
+            _ProfileStat(
+              icon: Icons.scale_outlined,
+              title: 'Maior peso',
+              value: heaviest == null
+                  ? 'Ainda sem registros'
+                  : '${heaviest.toStringAsFixed(2)} kg',
+            ),
+            _ProfileStat(
+              icon: Icons.set_meal_outlined,
+              title: 'Espécie mais pescada',
+              value: favoriteSpecies?.key ?? 'Ainda sem registros',
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => FirebaseAuth.instance.signOut(),
+              icon: const Icon(Icons.logout),
+              label: const Text('Sair da conta'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProfileStat extends StatelessWidget {
+  /// Cria um cartão para exibir uma estatística do perfil.
+  const _ProfileStat({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String title;
+  final String value;
+
+  /// Desenha o título e o valor da estatística.
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: Icon(icon, color: AppTheme.accent),
+        title: Text(title),
+        subtitle: Text(value),
       ),
     );
   }

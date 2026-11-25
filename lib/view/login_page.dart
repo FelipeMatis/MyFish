@@ -6,13 +6,16 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../components/my_button.dart';
 import '../components/my_textfield.dart';
 import '../components/social_button.dart';
+import '../theme/app_theme.dart';
 import 'register_page.dart';
 
 Future<void>? _googleSignInInitialization;
 
 class LoginPage extends StatefulWidget {
+  /// Cria a tela de autenticação.
   const LoginPage({super.key});
 
+  /// Cria o estado que mantém os campos e ações de autenticação.
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
@@ -22,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   final passwordController = TextEditingController();
   bool isBusy = false;
 
+  /// Libera os controladores dos campos ao fechar a tela.
   @override
   void dispose() {
     emailController.dispose();
@@ -29,6 +33,7 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /// Exibe uma mensagem de autenticação em uma caixa de diálogo.
   void showAlert(String message) {
     showDialog(
       context: context,
@@ -44,6 +49,7 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
+  /// Envia ao usuário o link para redefinir a senha.
   Future<void> forgotPassword() async {
     final email = emailController.text.trim();
     if (email.isEmpty) {
@@ -65,6 +71,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Autentica o usuário com e-mail e senha.
   Future<void> signIn() async {
     await _runSignIn(() async {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
@@ -74,6 +81,7 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  /// Autentica o usuário usando a conta Google.
   Future<void> signInWithGoogle() async {
     await _runSignIn(() async {
       final googleSignIn = GoogleSignIn.instance;
@@ -92,6 +100,7 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  /// Autentica o usuário usando o provedor Apple.
   Future<void> signInWithApple() async {
     await _runSignIn(() async {
       final provider = AppleAuthProvider()
@@ -101,6 +110,7 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
+  /// Executa uma autenticação controlando carregamento e erros.
   Future<void> _runSignIn(Future<void> Function() action) async {
     if (isBusy) return;
     setState(() => isBusy = true);
@@ -112,7 +122,9 @@ class _LoginPageState extends State<LoginPage> {
     } on GoogleSignInException catch (e) {
       if (mounted && e.code != GoogleSignInExceptionCode.canceled) {
         showAlert(
-          'Não foi possível entrar com Google. Verifique a configuração e tente novamente.',
+          e.code == GoogleSignInExceptionCode.clientConfigurationError
+              ? 'O login Google não está configurado. Ative o provedor no Firebase, adicione o SHA-1 do app e baixe novamente o google-services.json.'
+              : 'Não foi possível entrar com Google. Verifique a configuração e tente novamente.',
         );
       }
     } on PlatformException {
@@ -126,6 +138,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Converte códigos do Firebase em mensagens para o usuário.
   String _authErrorMessage(String code) {
     return switch (code) {
       'invalid-credential' => 'Email ou senha incorretos.',
@@ -140,162 +153,148 @@ class _LoginPageState extends State<LoginPage> {
     };
   }
 
+  /// Monta a tela de login e suas opções de autenticação.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF07111F), Color(0xFF111B2E)],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  Container(
-                    width: 94,
-                    height: 94,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF7C3AED), Color(0xFF2563EB)],
-                      ),
-                      borderRadius: BorderRadius.circular(28),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF7C3AED)
-                              .withValues(alpha: 0.35),
-                          blurRadius: 18,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.lock_rounded,
-                      size: 46,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Bem-vindo de volta!',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Acesse sua conta para continuar',
-                    style: TextStyle(color: Color(0xFF9FB3D9), fontSize: 15),
-                  ),
-                  const SizedBox(height: 30),
-                  MyTextField(
-                    controller: emailController,
-                    hintText: 'Email',
-                    icon: Icons.email_outlined,
-                  ),
-                  const SizedBox(height: 15),
-                  MyTextField(
-                    controller: passwordController,
-                    hintText: 'Senha',
-                    icon: Icons.lock_outline,
-                    isPassword: true,
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: isBusy ? null : forgotPassword,
-                      child: const Text(
-                        'Esqueceu a senha?',
-                        style: TextStyle(color: Color(0xFF9FB3D9)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  MyButton(
-                    onTap: isBusy ? null : signIn,
-                    text: isBusy ? 'Conectando...' : 'Entrar',
-                    icon: isBusy ? Icons.hourglass_top : Icons.login,
-                  ),
-                  if (isBusy) ...[
-                    const SizedBox(height: 12),
-                    const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
-                  const SizedBox(height: 28),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    child: Row(
-                      children: const [
-                        Expanded(child: Divider(color: Color(0xFF24354F))),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(
-                            'ou continue com',
-                            style: TextStyle(color: Color(0xFF9FB3D9)),
-                          ),
-                        ),
-                        Expanded(child: Divider(color: Color(0xFF24354F))),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
-                    child: Row(
-                      children: [
-                        SocialButton(
-                          icon: Icons.g_mobiledata,
-                          label: 'Google',
-                          onTap: isBusy ? null : signInWithGoogle,
-                        ),
-                        const SizedBox(width: 12),
-                        SocialButton(
-                          icon: Icons.apple,
-                          label: 'Apple',
-                          onTap: isBusy ? null : signInWithApple,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Ainda não tem conta? ',
-                        style: TextStyle(color: Color(0xFF9FB3D9)),
-                      ),
-                      TextButton(
-                        onPressed: isBusy
-                            ? null
-                            : () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const RegisterPage(),
-                                ),
-                              ),
-                        child: const Text(
-                          'Cadastre-se',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+      backgroundColor: AppTheme.bg,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              children: [
+                Container(
+                  width: 156,
+                  height: 156,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(36),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.accent.withValues(alpha: 0.16),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(36),
+                    child: Image.asset(
+                      'assets/icon/myfish_launcher.png',
+                      fit: BoxFit.cover,
+                      semanticLabel: 'Logo MyFish',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Seu diário de pescarias começa aqui',
+                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+                ),
+                const SizedBox(height: 30),
+                MyTextField(
+                  controller: emailController,
+                  hintText: 'Email',
+                  icon: Icons.email_outlined,
+                ),
+                const SizedBox(height: 15),
+                MyTextField(
+                  controller: passwordController,
+                  hintText: 'Senha',
+                  icon: Icons.lock_outline,
+                  isPassword: true,
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: isBusy ? null : forgotPassword,
+                    child: const Text(
+                      'Esqueceu a senha?',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                MyButton(
+                  onTap: isBusy ? null : signIn,
+                  text: isBusy ? 'Conectando...' : 'Entrar',
+                  icon: isBusy ? Icons.hourglass_top : Icons.login,
+                ),
+                if (isBusy) ...[
+                  const SizedBox(height: 12),
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppTheme.accent,
+                    ),
+                  ),
                 ],
-              ),
+                const SizedBox(height: 28),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
+                  child: Row(
+                    children: const [
+                      Expanded(child: Divider(color: AppTheme.cardSoft)),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'ou continue com',
+                          style: TextStyle(color: AppTheme.textSecondary),
+                        ),
+                      ),
+                      Expanded(child: Divider(color: AppTheme.cardSoft)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 25),
+                  child: Row(
+                    children: [
+                      SocialButton(
+                        icon: Icons.g_mobiledata,
+                        label: 'Google',
+                        onTap: isBusy ? null : signInWithGoogle,
+                      ),
+                      const SizedBox(width: 12),
+                      SocialButton(
+                        icon: Icons.apple,
+                        label: 'Apple',
+                        onTap: isBusy ? null : signInWithApple,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Ainda não tem conta? ',
+                      style: TextStyle(color: AppTheme.textSecondary),
+                    ),
+                    TextButton(
+                      onPressed: isBusy
+                          ? null
+                          : () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const RegisterPage(),
+                              ),
+                            ),
+                      child: const Text(
+                        'Cadastre-se',
+                        style: TextStyle(
+                          color: AppTheme.accent,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),

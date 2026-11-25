@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const bg = Color(0xFF07111F);
-  static const card = Color(0xFF111B2E);
-  static const cardSoft = Color(0xFF16233B);
-  static const accent = Color(0xFF7C3AED);
-  static const accent2 = Color(0xFF2563EB);
-  static const textPrimary = Color(0xFFEAF2FF);
-  static const textSecondary = Color(0xFF9FB3D9);
+  static const bg = Color(0xFF071A1D);
+  static const card = Color(0xFF10282B);
+  static const cardSoft = Color(0xFF173538);
+  static const accent = Color(0xFF35C6A0);
+  static const accent2 = Color(0xFF168A82);
+  static const textPrimary = Color(0xFFE9F5F2);
+  static const textSecondary = Color(0xFFA8C1BC);
 
   static final dark = ThemeData(
     brightness: Brightness.dark,
@@ -18,7 +18,7 @@ class AppTheme {
       secondary: accent2,
       surface: card,
       onSurface: textPrimary,
-      onPrimary: Colors.white,
+      onPrimary: bg,
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.transparent,
@@ -26,10 +26,7 @@ class AppTheme {
       elevation: 0,
     ),
     textTheme: const TextTheme(
-      headlineSmall: TextStyle(
-        color: textPrimary,
-        fontWeight: FontWeight.w700,
-      ),
+      headlineSmall: TextStyle(color: textPrimary, fontWeight: FontWeight.w700),
       bodyLarge: TextStyle(color: textPrimary),
       bodyMedium: TextStyle(color: textSecondary),
     ),
@@ -37,9 +34,7 @@ class AppTheme {
       color: cardSoft,
       elevation: 0,
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -58,6 +53,17 @@ class AppTheme {
         borderSide: const BorderSide(color: accent, width: 1.5),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: card,
+      indicatorColor: accent.withValues(alpha: 0.18),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          color: states.contains(WidgetState.selected) ? accent : textSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     ),
   );
 }
